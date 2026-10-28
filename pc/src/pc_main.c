@@ -23,6 +23,17 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 
 SDL_Window*   g_pc_window = NULL;
 SDL_GLContext  g_pc_gl_context = NULL;
+#ifdef PC_GLWGPU
+#include "glwgpu.h"
+/* The display handle for glwgpu: none on the PC (headless/offscreen),
+ * HBLauncher's vi window on the Switch. */
+#ifdef HBX_SWITCH2
+extern void* hbx_switch2_vi_window(void);
+static void* pc_glwgpu_native_window(void) { return hbx_switch2_vi_window(); }
+#else
+static void* pc_glwgpu_native_window(void) { return NULL; }
+#endif
+#endif
 int           g_pc_running = 1;
 int           g_pc_no_framelimit = 0;
 int           g_pc_fast_forward = 0;
@@ -144,7 +155,11 @@ void pc_platform_init(void) {
 #endif
 
     {
+#ifdef PC_GLWGPU
+        Uint32 flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;   /* glwgpu owns presentation */
+#else
         Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
+#endif
         int win_w = g_pc_settings.window_width;
         int win_h = g_pc_settings.window_height;
         if (g_pc_settings.fullscreen == 1) {
@@ -164,6 +179,20 @@ void pc_platform_init(void) {
         exit(1);
     }
 
+#ifdef PC_GLWGPU
+    {
+        /* GL 3.3 subset on WebGPU (glwgpu): no GL context; glad loads glwgpu's
+         * entry points.  The EFB is the configured window size. */
+        glwgpu_config cfg = {0};
+        cfg.width = g_pc_settings.window_width > 0 ? g_pc_settings.window_width : PC_SCREEN_WIDTH;
+        cfg.height = g_pc_settings.window_height > 0 ? g_pc_settings.window_height : PC_SCREEN_HEIGHT;
+        cfg.switch_vi_window = pc_glwgpu_native_window();
+        if (!glwgpu_init(&cfg) || !gladLoadGL((GLADloadfunc)glwgpu_get_proc)) {
+            fprintf(stderr, "glwgpu init failed\n");
+            exit(1);
+        }
+    }
+#else
     g_pc_gl_context = SDL_GL_CreateContext(g_pc_window);
     if (!g_pc_gl_context) {
         fprintf(stderr, "SDL_GL_CreateContext failed: %s\n", SDL_GetError());
@@ -179,6 +208,7 @@ void pc_platform_init(void) {
         SDL_Quit();
         exit(1);
     }
+#endif
 
     if (g_pc_verbose) {
         const char* vendor = (const char*)glGetString(GL_VENDOR);
@@ -210,7 +240,9 @@ void pc_platform_init(void) {
     }
 #endif
 
+#ifndef PC_GLWGPU
     SDL_GL_SetSwapInterval(g_pc_settings.vsync);
+#endif
 
     pc_platform_update_window_size();
 
@@ -258,7 +290,12 @@ void pc_platform_shutdown(void) {
 }
 
 void pc_platform_update_window_size(void) {
+#ifdef PC_GLWGPU
+    g_pc_window_w = g_pc_settings.window_width;
+    g_pc_window_h = g_pc_settings.window_height;
+#else
     SDL_GL_GetDrawableSize(g_pc_window, &g_pc_window_w, &g_pc_window_h);
+#endif
     if (g_pc_window_w <= 0) g_pc_window_w = PC_SCREEN_WIDTH;
     if (g_pc_window_h <= 0) g_pc_window_h = PC_SCREEN_HEIGHT;
 }
@@ -289,7 +326,11 @@ void pc_platform_swap_buffers(void) {
         }
         diag_frame++;
     }
+#ifdef PC_GLWGPU
+    glwgpu_present();
+#else
     SDL_GL_SwapWindow(g_pc_window);
+#endif
 }
 
 int pc_platform_poll_events(void) {

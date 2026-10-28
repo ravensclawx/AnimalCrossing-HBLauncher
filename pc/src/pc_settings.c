@@ -342,7 +342,9 @@ void pc_settings_apply(void) {
         }
     }
 
+#ifndef PC_GLWGPU
     SDL_GL_SetSwapInterval(g_pc_settings.vsync);
+#endif
     pc_platform_update_window_size();
 
     printf("[Settings] Applied: %dx%d fullscreen=%d vsync=%d max_fps=%d msaa=%d\n",

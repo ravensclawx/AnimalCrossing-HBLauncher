@@ -445,7 +445,25 @@ else()
     target_link_libraries(ac_pc glad ${SDL2_LIBRARIES})
 endif()
 
-if(WIN32)
+option(PC_GLWGPU "Render through glwgpu (GL 3.3 subset on WebGPU/Dawn) instead of OpenGL" OFF)
+if(PC_GLWGPU)
+    set(GLWGPU_DIR "${DECOMP_ROOT}/../glwgpu" CACHE PATH "glwgpu sources")
+    set(GLSLANG_DIR "" CACHE PATH "glslang install prefix")
+    set(Dawn_DIR "" CACHE PATH "Dawn package config dir (lib/cmake/Dawn)")
+    enable_language(CXX)
+    find_package(Threads REQUIRED)
+    find_package(Dawn REQUIRED CONFIG)
+    add_library(glwgpu STATIC ${GLWGPU_DIR}/glwgpu.cpp)
+    set_target_properties(glwgpu PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+    target_include_directories(glwgpu PUBLIC ${GLWGPU_DIR} PRIVATE ${GLSLANG_DIR}/include)
+    target_link_libraries(glwgpu PRIVATE dawn::webgpu_dawn
+        ${GLSLANG_DIR}/lib/libglslang.a ${GLSLANG_DIR}/lib/libSPIRV.a
+        ${GLSLANG_DIR}/lib/libglslang-default-resource-limits.a
+        ${GLSLANG_DIR}/lib/libMachineIndependent.a ${GLSLANG_DIR}/lib/libGenericCodeGen.a
+        ${GLSLANG_DIR}/lib/libOSDependent.a)
+    target_compile_definitions(ac_pc PRIVATE PC_GLWGPU)
+    target_link_libraries(ac_pc glwgpu dl pthread m)
+elseif(WIN32)
     target_link_libraries(ac_pc opengl32 winmm imm32 version setupapi)
 elseif(APPLE)
     find_package(OpenGL REQUIRED)
