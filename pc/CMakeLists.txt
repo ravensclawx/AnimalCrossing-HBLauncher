@@ -79,7 +79,18 @@ include_directories(
 if(WIN32)
     set(SDL2_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/SDL2/cmake" CACHE PATH "SDL2 cmake dir")
 endif()
-find_package(SDL2 QUIET)
+option(PC_HBX_SWITCH2 "HBLauncher Switch 2 build (static aarch64-musl, hbxl runtime)" OFF)
+if(PC_HBX_SWITCH2)
+    # SDL2 API = sdl2-compat linked statically to HBLauncher's SDL3
+    # (ports/animalcrossing/tools/build-sdl2compat-switch.sh)
+    set(SDL_SWITCH_DIR "" CACHE PATH "sdl-switch output dir")
+    set(SDL2_FOUND TRUE)
+    set(SDL2_INCLUDE_DIRS "${SDL_SWITCH_DIR}/include/SDL2" "${SDL_SWITCH_DIR}/include")
+    set(SDL2_LIBRARIES "${SDL_SWITCH_DIR}/libSDL2.a" "${SDL_SWITCH_DIR}/sdl3_static_table.o"
+                       "${SDL_SWITCH_DIR}/libSDL3x.a")
+else()
+    find_package(SDL2 QUIET)
+endif()
 if(NOT SDL2_FOUND)
     # Try pkg-config (works on both Linux and MSYS2)
     find_package(PkgConfig QUIET)
@@ -452,17 +463,39 @@ if(PC_GLWGPU)
     set(Dawn_DIR "" CACHE PATH "Dawn package config dir (lib/cmake/Dawn)")
     enable_language(CXX)
     find_package(Threads REQUIRED)
-    find_package(Dawn REQUIRED CONFIG)
     add_library(glwgpu STATIC ${GLWGPU_DIR}/glwgpu.cpp)
     set_target_properties(glwgpu PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
     target_include_directories(glwgpu PUBLIC ${GLWGPU_DIR} PRIVATE ${GLSLANG_DIR}/include)
-    target_link_libraries(glwgpu PRIVATE dawn::webgpu_dawn
+    if(PC_HBX_SWITCH2)
+        # HBLauncher's Switch Dawn (vi surface, console Vulkan), read only
+        set(DAWN_SWITCH_SRC "" CACHE PATH "patched Dawn source")
+        set(DAWN_SWITCH_BUILD "" CACHE PATH "Dawn build dir")
+        target_include_directories(glwgpu PRIVATE ${DAWN_SWITCH_BUILD}/gen/include ${DAWN_SWITCH_SRC}/include)
+        set(DAWN_LIB ${DAWN_SWITCH_BUILD}/src/dawn/native/libwebgpu_dawn.a)
+    else()
+        find_package(Dawn REQUIRED CONFIG)
+        set(DAWN_LIB dawn::webgpu_dawn)
+    endif()
+    target_link_libraries(glwgpu PRIVATE ${DAWN_LIB}
         ${GLSLANG_DIR}/lib/libglslang.a ${GLSLANG_DIR}/lib/libSPIRV.a
         ${GLSLANG_DIR}/lib/libglslang-default-resource-limits.a
         ${GLSLANG_DIR}/lib/libMachineIndependent.a ${GLSLANG_DIR}/lib/libGenericCodeGen.a
         ${GLSLANG_DIR}/lib/libOSDependent.a)
     target_compile_definitions(ac_pc PRIVATE PC_GLWGPU)
     target_link_libraries(ac_pc glwgpu dl pthread m)
+    if(PC_HBX_SWITCH2)
+        # An HBLauncher Linux-personality image (sdk/linux/hbxl.ld)
+        set(HBXL_RUNTIME "" CACHE FILEPATH "libhbxl.a")
+        set(HBXL_LD "" CACHE FILEPATH "hbxl.ld")
+        set(HBXL_CODE_BASE "0x20000000" CACHE STRING "")
+        set(HBXL_DATA_BASE "0x28000000" CACHE STRING "")
+        set(HBXL_FS_PORT "39502" CACHE STRING "this app's hbxl-fileserver port")
+        target_link_options(ac_pc PRIVATE -nostartfiles -Wl,-T,${HBXL_LD}
+            -Wl,--defsym=HBXL_CODE_BASE=${HBXL_CODE_BASE} -Wl,--defsym=HBXL_DATA_BASE=${HBXL_DATA_BASE}
+            -Wl,--defsym=HBXL_FS_PORT=${HBXL_FS_PORT}
+            -Wl,--eh-frame-hdr -Wl,--gc-sections -Wl,-z,noexecstack
+            -Wl,--whole-archive ${HBXL_RUNTIME} -Wl,--no-whole-archive)
+    endif()
 elseif(WIN32)
     target_link_libraries(ac_pc opengl32 winmm imm32 version setupapi)
 elseif(APPLE)
