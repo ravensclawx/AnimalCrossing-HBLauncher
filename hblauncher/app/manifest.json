@@ -1,0 +1,20 @@
+{
+  "id": "animalcrossing",
+  "name": "Animal Crossing",
+  "description": "ACGC PC port (ac-decomp) on WebGPU via glwgpu - your own GAFE01 disc, served from the PC",
+  "version": "0.1.0",
+  "abi": 3,
+  "kind": "native",
+  "display": "exclusive",
+  "sources": [],
+  "linux": {
+    "code_base": "0x20000000",
+    "data_base": "0x28000000",
+    "fs_port": 39502
+  },
+  "limits": {
+    "heap_bytes": 65536,
+    "stack_bytes": 1048576,
+    "frames": 0
+  }
+}

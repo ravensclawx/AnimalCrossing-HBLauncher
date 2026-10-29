@@ -1,196 +1,111 @@
-# Animal Crossing PC Port
+# Animal Crossing for HBLauncher
 
-A native PC port of Animal Crossing (GameCube) built on top of the [ac-decomp](https://github.com/ACreTeam/ac-decomp) decompilation project.
+A Switch 2 HBLauncher port of [outusuke/ACGC-PC-Port](https://github.com/outusuke/ACGC-PC-Port),
+based on the Animal Crossing GameCube decompilation. Maintained by **@ravensclawx**.
 
-The game's original C code runs natively on PC, with a custom translation layer replacing the GameCube's GX graphics API with OpenGL 3.3.
+The native AArch64 game runs through HBLauncher's Linux personality. Its GX/OpenGL
+translation layer uses the included `glwgpu` adapter to render through Dawn/Vulkan.
+The app uses exclusive display ownership and requires your own **GAFE01 USA rev 0** disc.
 
-This repository does not contain any game assets or assembly whatsoever. An existing copy of the game is required.
+## Requirements
 
-Supported versions: GAFE01_00: Rev 0 (USA)
+- [HBLauncher](https://github.com/ravensclawx/HBLauncher), with ABI 3 and its Linux personality runtime.
+- Linux, Python 3, Git, CMake, Ninja, and a patched `aarch64-linux-musl` toolchain.
+- Your own supported game disc image. Disc images, extracted game data, saves,
+  and game artwork are not included in this fork.
 
-## Quick Start (Pre-built Release)
+These are experimental Switch 2 ports. A successful build does not establish
+console compatibility or gameplay performance. Hardware testing of these new
+standalone packages is still required.
 
-Pre-built releases are available on the [Releases](https://github.com/flyngmt/ACGC-PC-Port/releases) page. No build tools required.
+## Toolchain
 
-1. Download and extract the latest release zip
-2. Place your disc image in the `rom/` folder
-3. Run `AnimalCrossing.exe`
+Set the SDK and compiler locations (replace the example paths):
 
-The game reads all assets directly from the disc image at startup. No extraction or preprocessing step is needed.
+```sh
+export HBL_ROOT=/path/to/HBLauncher
+export HBXL_TOOLCHAIN=/path/to/patched-toolchain
+```
 
-## Building from Source
+An ordinary Linux cross-compiler is insufficient: musl must route syscalls
+through HBLauncher's `__hbx_syscall`, and target libraries need BTI landing pads.
+The known configuration uses GCC 15.1.0, musl 1.2.6, and binutils 2.44. To build
+it with musl-cross-make:
 
-Only needed if you want to modify the code. Otherwise, use the [pre-built release](https://github.com/flyngmt/ACGC-PC-Port/releases) above.
+```sh
+git clone https://github.com/richfelker/musl-cross-make.git toolchain-src
+git -C toolchain-src checkout 5e8042e63de29f8473fc3b0b831a587ba284e1a8
+cp hblauncher/cmake/config.mak.example toolchain-src/config.mak
+mkdir -p toolchain-src/patches/musl-1.2.6
+cp "$HBL_ROOT/sdk/linux/musl-hbx-syscall-hooks.diff"   toolchain-src/patches/musl-1.2.6/9001-hbx-syscall-hooks.diff
+make -C toolchain-src -j8
+make -C toolchain-src install
+export HBXL_TOOLCHAIN="$PWD/toolchain-src/toolchain"
+```
 
-### Requirements
+Compiler sources and downloads remain local; they are not part of this fork.
 
-- **Animal Crossing (USA) disc image** (ISO, GCM, or CISO format)
-- **CMake** 3.16+
-- **SDL2** development libraries
-- **GCC** (required on 64-bit platforms; Clang is supported on 32-bit only)
+## Build
 
-### Build Steps
+Pinned versions are recorded in `hblauncher/dependencies.json`. The dependency
+script checks out Dawn, SDL 3.4.10, and glslang, applies the Switch patches,
+then builds Dawn, SDL3, glslang, and the static SDL2 compatibility layer:
 
-### Windows 32-bit (MSYS2)
+```sh
+python3 hblauncher/dependencies.py build --jobs 8
+export DAWN_SOURCE="$PWD/hblauncher/deps/dawn"
+export DAWN_BUILD="$PWD/hblauncher/deps/build-dawn"
+export GLSLANG_PREFIX="$PWD/hblauncher/deps/glslang-install"
+export SDL2_PREFIX="$PWD/hblauncher/deps/sdl-switch"
+python3 hblauncher/build.py build --jobs 8
+```
 
-1. Install **MSYS2** (https://www.msys2.org/)
+You may point those four variables to existing matching, patched dependency
+builds instead. `build.py configure` only configures; `build.py pack --elf
+/path/to/AnimalCrossing` packages a previously linked executable without rebuilding.
+The default code/data addresses are `0x20000000` / `0x28000000`.
 
-2. Open **MSYS2 MINGW32** and install dependencies:
-   ```bash
-   pacman -S mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-i686-SDL2 mingw-w64-i686-make
-   ```
+## Install and run
 
-3. Clone and build:
-   ```bash
-   git clone https://github.com/flyngmt/ACGC-PC-Port.git
-   cd ACGC-PC-Port
-   ./build_pc.sh
-   ```
+The resulting app directory is `hblauncher/dist/animalcrossing`. Copy that
+whole directory into `$HBL_ROOT/apps/`, or run:
 
-4. Place your disc image in `pc/build32/bin/rom/` and run:
-   ```bash
-   pc/build32/bin/AnimalCrossing.exe
-   ```
+```sh
+python3 hblauncher/build.py install
+```
 
-### Windows 64-bit (MSYS2)
+Installation refuses to overwrite an existing app directory. Only the manifest,
+code/data images, and matching build report are installed; there is no bundled
+commercial game artwork.
 
-1. Install **MSYS2** (https://www.msys2.org/)
+Create a private file-server root:
 
-2. Open **MSYS2 MINGW64** and install dependencies:
-   ```bash
-   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-SDL2 mingw-w64-x86_64-make
-   ```
+```sh
+mkdir -p hblauncher/fsroot/rom
+cp /path/to/your/AnimalCrossing.iso hblauncher/fsroot/rom/AnimalCrossing.iso
+cp -R pc/shaders hblauncher/fsroot/shaders
+printf 'HBXL_PRELOAD=/rom/AnimalCrossing.iso\nHBXL_ARGS=--verbose\n' > hblauncher/fsroot/hbxl-env
+python3 hblauncher/build.py serve
+```
 
-3. Clone and build:
-   ```bash
-   git clone https://github.com/flyngmt/ACGC-PC-Port.git
-   cd ACGC-PC-Port/pc
-   mkdir build64 && cd build64
-   cmake .. -G "MinGW Makefiles"
-   mingw32-make -j$(nproc)
-   ```
+The server uses `10.42.0.1:39502`, matching the app's manifest and linked
+`HBXL_FS_PORT`. Keep it running, establish a verified HBLauncher session, and
+select **Animal Crossing**. The server root also receives settings, caches,
+and saves; keep them private and back up saves before replacing a local setup.
+See `README.upstream.md` and `pc/DOCUMENTATION.md` for upstream game setup and controls.
 
-4. Place your disc image in `pc/build64/bin/rom/` and run:
-   ```bash
-   pc/build64/bin/AnimalCrossing.exe
-   ```
+## Source and credits
 
-### macOS (Apple Silicon & Intel)
+Upstream history and licensing are preserved. Read [LICENSE](LICENSE),
+[the upstream README](README.upstream.md), and
+[the integration notices](hblauncher/THIRD_PARTY.md). HBLauncher integration
+additions use [MIT](hblauncher/LICENSE.integration). Original upstream CI is
+disabled for this port branch; local build instructions above target HBLauncher.
 
-1. Install dependencies:
-   ```bash
-   brew install gcc sdl2 cmake
-   ```
+## Source archive
 
-2. Clone and build:
-   ```bash
-   git clone https://github.com/flyngmt/ACGC-PC-Port.git
-   cd ACGC-PC-Port/pc
-   mkdir build && cd build
-   cmake .. -DCMAKE_C_COMPILER=gcc-15 -DCMAKE_CXX_COMPILER=g++-15
-   make -j$(sysctl -n hw.ncpu)
-   ```
-   > Adjust `gcc-15`/`g++-15` to match your installed GCC version (`ls /opt/homebrew/bin/gcc-*`).
-
-3. Place your disc image in `build/bin/rom/` and run:
-   ```bash
-   build/bin/AnimalCrossing
-   ```
-
-### Linux (x86_64 / ARM64)
-
-1. Install dependencies:
-   ```bash
-   # Arch/CachyOS/Manjaro
-   sudo pacman -S gcc cmake sdl2
-
-   # Debian/Ubuntu
-   sudo apt install gcc g++ cmake libsdl2-dev
-
-   # Fedora
-   sudo dnf install gcc gcc-c++ cmake SDL2-devel
-   ```
-
-2. Clone and build:
-   ```bash
-   git clone https://github.com/flyngmt/ACGC-PC-Port.git
-   cd ACGC-PC-Port/pc
-   mkdir build && cd build
-   cmake ..
-   make -j$(nproc)
-   ```
-
-3. Place your disc image in `build/bin/rom/` and run:
-   ```bash
-   build/bin/AnimalCrossing
-   ```
-
-### Disc Image
-
-The game reads all assets directly from the disc image at startup. No extraction or preprocessing step is needed. Place your disc image (`.iso`, `.gcm`, or `.ciso`) in the `rom/` folder next to the executable — the file can be named anything. The game also checks the `orig/` folder and the current directory.
-
-## Controls
-
-Keyboard bindings are customizable via `keybindings.ini` (next to the executable). Mouse buttons (Mouse1/Mouse2/Mouse3) can also be assigned.
-
-### Keyboard (defaults)
-
-| Key | Action |
-|-----|--------|
-| WASD | Move (left stick) |
-| Arrow Keys | Camera (C-stick) |
-| Space | A button |
-| Left Shift | B button |
-| Enter | Start |
-| X | X button |
-| Y | Y button |
-| Q / E | L / R triggers |
-| Z | Z trigger |
-| I / J / K / L | D-pad (up/left/down/right) |
-
-### Gamepad
-
-SDL2 game controllers are supported with automatic hotplug detection. Button mapping follows the standard GameCube layout.
-
-## Command Line Options
-
-| Flag | Description |
-|------|-------------|
-| `--verbose` | Enable diagnostic logging |
-| `--no-framelimit` | Disable frame limiter (unlocked FPS) |
-| `--model-viewer [index]` | Launch debug model viewer (structures, NPCs, fish) |
-| `--time HOUR` | Override in-game hour (0-23) |
-
-## Settings
-
-Graphics settings are stored in `settings.ini` (next to the executable) and can be edited manually or through the in-game options menu:
-
-- Resolution (up to 4K)
-- Fullscreen toggle
-- VSync
-- MSAA (anti-aliasing)
-- Texture Loading/Caching (No need to enable if you aren't using a texture pack)
-
-## Texture Packs
-
-Custom textures can be placed in the `texture_pack/` folder next to the executable. Dolphin-compatible format (XXHash64, DDS).
-
-I highly recommend the following texture pack from the talented artists of Animal Crossing community.
-
-[HD Texture Pack](https://forums.dolphin-emu.org/Thread-animal-crossing-hd-texture-pack-version-23-feb-22nd-2026)
-
-## Save Data
-
-Save files are stored in the `save/` folder next to the executable, using the standard GCI format. Compatible with Dolphin emulator saves — place a Dolphin GCI export in the save directory to import an existing save.
-
-## Credits
-
-This project would not be possible without the work of the [ACreTeam](https://github.com/ACreTeam) decompilation team. Their complete C decompilation of Animal Crossing is the foundation this port is built on.
-
-## AI Notice
-
-AI tools such as Claude were used in this project (PC port code only).
-
-## FAQ
-
-See [FAQ](FAQ.md) for more info.
+`python3 hblauncher/package-source.py` writes a source-only archive under
+`hblauncher/dist/`. Initialize submodules before packaging Twilight Princess.
+The archive includes their source and the applied Aurora changes. It excludes
+local dependencies, build output, discs, saves, and file-server data. Build the
+app locally using the instructions above; generated app packages are ignored by Git.

@@ -48,3 +48,20 @@ temp/
 include/PR/
 include/gcc/
 include/compiler/gcc/stdlib.h
+
+# HBLauncher local output and user data
+/hblauncher/build/
+/hblauncher/dist/
+/hblauncher/deps/
+/hblauncher/fsroot/
+/hblauncher/app/build/
+*.local.json
+.env
+*.iso
+*.gcm
+*.rvz
+*.ciso
+*.sav
+/toolchain-src/
+__pycache__/
+*.pyc

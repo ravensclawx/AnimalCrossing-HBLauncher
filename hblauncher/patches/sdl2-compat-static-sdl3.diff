@@ -1,0 +1,31 @@
+diff --git a/src/sdl2_compat.c b/src/sdl2_compat.c
+index a19fe0d..379ad60 100644
+--- a/src/sdl2_compat.c
++++ b/src/sdl2_compat.c
+@@ -386,7 +386,16 @@ static bool SDL2Compat_CheckDebugLogging(void)
+ /* Obviously we can't use SDL_LoadObject() to load SDL3.  :)  */
+ /* FIXME: Updated library names after https://github.com/libsdl-org/SDL/issues/5626 solidifies.  */
+ static char loaderror[256];
+-#if defined(_WIN32)
++#if defined(SDL2COMPAT_STATIC_SDL3)
++    /* SDL3 is linked statically with its SDL_* symbols renamed; symbols come
++     * from a generated table (HBLauncher Switch 2 build). */
++    extern void *SDL2COMPAT_StaticSDL3Lookup(const char *name);
++    static int Loaded_SDL3 = 0;
++    #define DIRSEP "/"
++    #define LoadSDL3Library() (Loaded_SDL3 = 1)
++    #define LookupSDL3Sym(sym) SDL2COMPAT_StaticSDL3Lookup(sym)
++    #define CloseSDL3Library() { Loaded_SDL3 = 0; }
++#elif defined(_WIN32)
+     static HMODULE Loaded_SDL3 = NULL;
+     #define DIRSEP "\\"
+     #define SDL3_LIBNAME "SDL3.dll"
+@@ -1047,7 +1056,7 @@ LoadSDL3(void)
+     if (!Loaded_SDL3) {
+         bool force_x11 = false;
+ 
+-        #ifdef __linux__
++        #if defined(__linux__) && !defined(SDL2COMPAT_STATIC_SDL3)
+         void *global_symbols = dlopen(NULL, RTLD_LOCAL|RTLD_NOW);
+ 
+         /* Use linked libraries to detect what quirks we are likely to need */

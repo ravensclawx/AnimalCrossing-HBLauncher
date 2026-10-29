@@ -1,0 +1,29 @@
+{
+  "upstream": "8aab5cc3c9aca26027b92e1255ba6f8c73ca5099",
+  "dawn": {
+    "repository": "https://github.com/encounter/dawn",
+    "commit": "1155e0ed531126f33a1279afa029349651ca1c93"
+  },
+  "glslang": {
+    "repository": "https://github.com/KhronosGroup/glslang",
+    "commit": "8a85691a0740d390761a1008b4696f57facd02c4"
+  },
+  "sdl2-compat": {
+    "repository": "https://github.com/libsdl-org/sdl2-compat",
+    "commit": "d8198c285b6692407db4fb6f5b7984cd5c169a2f"
+  },
+  "runtime": {
+    "repository": "https://github.com/ravensclawx/HBLauncher",
+    "abi": 3,
+    "toolchain": "GCC 15.1.0, musl 1.2.6, binutils 2.44; syscall hooks required"
+  },
+  "sdl3": {
+    "repository": "https://github.com/libsdl-org/SDL",
+    "commit": "8e37db5e797b6167f3a00d697d816a684bd259c7",
+    "version": "3.4.10"
+  },
+  "musl-cross-make": {
+    "repository": "https://github.com/richfelker/musl-cross-make",
+    "commit": "5e8042e63de29f8473fc3b0b831a587ba284e1a8"
+  }
+}
