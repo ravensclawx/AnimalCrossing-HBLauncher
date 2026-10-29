@@ -20,6 +20,9 @@ def files(repo, prefix=Path()):
             yield relative, path
 
 def main():
+    status = subprocess.check_output(['git', '-C', str(ROOT), 'submodule', 'status', '--recursive'], text=True)
+    if any(line.startswith('-') for line in status.splitlines()):
+        raise SystemExit('Initialize submodules before packaging: git submodule update --init --recursive')
     out = ROOT / 'hblauncher/dist' / (ROOT.name + '-source.tar.gz')
     out.parent.mkdir(parents=True, exist_ok=True)
     count = 0

@@ -7,12 +7,22 @@ The native AArch64 game runs through HBLauncher's Linux personality. Its GX/Open
 translation layer uses the included `glwgpu` adapter to render through Dawn/Vulkan.
 The app uses exclusive display ownership and requires your own **GAFE01 USA rev 0** disc.
 
+## Set up HBLauncher first
+
+These apps run inside [HBLauncher](https://github.com/ravensclawx/HBLauncher)
+on Nintendo Switch 2. Follow the
+[HBLauncher Getting Started guide](https://github.com/ravensclawx/HBLauncher/blob/main/docs/GETTING_STARTED.md)
+to install the launcher, set up its external session runner, and establish the
+required verified session. Then follow this README's **Build** and **Install and
+run** sections to add the game to your app library and start its file server.
+Launch the game from HBLauncher's library while that server is running.
+
 ## Requirements
 
 - [HBLauncher](https://github.com/ravensclawx/HBLauncher), with ABI 3 and its Linux personality runtime.
 - Linux, Python 3, Git, CMake, Ninja, and a patched `aarch64-linux-musl` toolchain.
-- Your own supported game disc image. Disc images, extracted game data, saves,
-  and game artwork are not included in this fork.
+- Your own supported game disc image. This integration adds no disc images, extracted game data, or private saves.
+  Upstream source resources retain their original notices.
 
 These are experimental Switch 2 ports. A successful build does not establish
 console compatibility or gameplay performance. Hardware testing of these new

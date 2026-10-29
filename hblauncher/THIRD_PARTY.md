@@ -8,4 +8,5 @@ are available under the MIT license in LICENSE.integration.
 Dawn, glslang, SDL3, SDL2 compatibility, and the patched musl toolchain are
 external dependencies with their own licenses; their binaries are not included
 in this source repository. The nod-lite header follows the external nod API.
-Game disc images, extracted game files, saves, and game artwork are not included.
+This integration adds no game disc images, extracted game files, or private saves.
+Upstream source resources retain their original notices.

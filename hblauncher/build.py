@@ -109,10 +109,13 @@ def main():
     args, extra = parser.parse_known_args()
     if extra and args.action not in ["configure", "build"]:
         parser.error("Extra CMake arguments require configure or build")
-    elf = args.elf or (BUILD / "bin/AnimalCrossing" if IS_AC else BUILD / "dusklight.elf")
+    elf = args.elf or (BUILD / "bin/AnimalCrossing" if IS_AC else BUILD / "dusklight")
     if args.action in ["configure", "build"]:
         configure(extra)
     if args.action == "build":
+        # The runtime archive is supplied as a linker option, so force a relink
+        # after rebuilding it even when the game objects are unchanged.
+        elf.unlink(missing_ok=True)
         run(["cmake", "--build", BUILD, "--parallel", str(args.jobs)])
     if args.action in ["build", "pack", "install"]:
         package = pack(elf.resolve())
